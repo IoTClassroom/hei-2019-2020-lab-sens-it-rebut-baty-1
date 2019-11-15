@@ -1,3 +1,5 @@
 .DS_Store
 .vscode
 gnu-arm/
+.idea
+sensit-sdk-v2.0.0

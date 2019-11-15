@@ -1,3 +1,4 @@
-Sens'it ID:B436A2
+Sens'it ID:B436AA
+Use-case: 3 - Vibration sensing
 Firtnames:Pierre-Felix-Stanislas
 Lastnames:Rebut-Baty-Vallet

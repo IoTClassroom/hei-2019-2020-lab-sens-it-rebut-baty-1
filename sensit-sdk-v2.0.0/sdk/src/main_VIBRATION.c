@@ -22,33 +22,19 @@
 #define VIBRATION_COUNT                    2
 
 
-/******* GLOBAL VARIABLES ******************************************/
-u8 firmware_version[] = "VIBR_v2.0.0";
-
-
-/*******************************************************************/
-
-int main()
+/**
+ * Init sigfox module
+ */
+static void init()
 {
+    SENSIT_API_configure_button(INTERRUPT_BOTH_EGDE); /* Configure button */
+
     error_t err;
-    button_e btn;
-    bool send = FALSE;
 
-    /* Discovery payload variable */
-    discovery_data_s data = {0};
-    discovery_payload_s payload;
-
-    /* Start of initialization */
-
-    /* Configure button */
-    SENSIT_API_configure_button(INTERRUPT_BOTH_EGDE);
-
-    /* Initialize Sens'it radio */
-    err = RADIO_API_init();
+    err = RADIO_API_init(); /* Initialize Sens'it radio */
     ERROR_parser(err);
 
-    /* Initialize accelerometer */
-    err = FXOS8700_init();
+    err = FXOS8700_init(); /* Initialize accelerometer */
     ERROR_parser(err);
 
     /* Put accelerometer in transient mode */
@@ -56,112 +42,104 @@ int main()
 
     /* Clear pending interrupt */
     pending_interrupt = 0;
+}
 
-    /* End of initialization */
-
-    while (TRUE)
+typedef struct
+{
+    struct {
+        s8 reserved:4;
+        s8 eventId:4;
+    };
+    struct
     {
-        /* Execution loop */
+        s16 ax;
+        s16 ay;
+        s16 az;
+    };
+} __attribute__((packed)) data_t;
 
-        /* Check of battery level */
-        BATTERY_handler(&(data.battery));
+/**
+ * Send data by sigfox
+ * @param data
+ * @return
+ */
+static void sendData(data_t *data)
+{
+    /* Send the message */
+    error_t err = RADIO_API_send_message(RGB_BLUE, (u8 *) data, sizeof(data_t), FALSE, NULL);
+    ERROR_parser(err);/* Parse the error code */
+}
+
+#define CHECK_EVENT(evt) (pending_interrupt & evt) == evt
+#define CLEAR_EVENT(evt) pending_interrupt &= ~evt
+
+/**
+ * Get acceleration information from sensor
+ * @param data
+ */
+static void getAccInfo(data_t *data)
+{
+    fxos8700_data_s info;
+    error_t err = FXOS8700_read_acceleration(&info);
+
+    ERROR_parser(err);
+
+    data->eventId = 2;
+    data->ax = info.x;
+    data->ay = info.y;
+    data->az = info.z;
+}
+
+int main()
+{
+    init();
+    bool send = FALSE;
+
+    while (TRUE) {
+        data_t data = {0};
 
         /* RTC alarm interrupt handler */
-        if ((pending_interrupt & INTERRUPT_MASK_RTC) == INTERRUPT_MASK_RTC)
-        {
-            /* Clear interrupt */
-            pending_interrupt &= ~INTERRUPT_MASK_RTC;
+        if (CHECK_EVENT(INTERRUPT_MASK_RTC)) {
+            CLEAR_EVENT(INTERRUPT_MASK_RTC);
         }
 
         /* Button interrupt handler */
-        if ((pending_interrupt & INTERRUPT_MASK_BUTTON) == INTERRUPT_MASK_BUTTON)
-        {
-            /* RGB Led ON during count of button presses */
-            SENSIT_API_set_rgb_led(RGB_BLUE);
+        if (CHECK_EVENT(INTERRUPT_MASK_BUTTON)) {
+            SENSIT_API_set_rgb_led(RGB_BLUE); /* RGB Led ON during count of button presses */
+            button_e btn = BUTTON_handler(); /* Count number of presses */
+            SENSIT_API_set_rgb_led(RGB_OFF); /* RGB Led OFF */
 
-            /* Count number of presses */
-            btn = BUTTON_handler();
-
-            /* RGB Led OFF */
-            SENSIT_API_set_rgb_led(RGB_OFF);
-
-            if (btn == BUTTON_TWO_PRESSES)
-            {
-                /* Set button flag */
-                data.button = TRUE;
-
-                /* Set send flag */
+            if (btn == BUTTON_TWO_PRESSES) {
+                getAccInfo(&data);
                 send = TRUE;
-            }
-            else if (btn == BUTTON_FOUR_PRESSES)
-            {
-                /* Reset the device */
-                SENSIT_API_reset();
+            } else if (btn == BUTTON_FOUR_PRESSES) {
+                SENSIT_API_reset(); /* Reset the device */
             }
 
-            /* Clear interrupt */
-            pending_interrupt &= ~INTERRUPT_MASK_BUTTON;
+            CLEAR_EVENT(INTERRUPT_MASK_BUTTON);
         }
 
         /* Reed switch interrupt handler */
-        if ((pending_interrupt & INTERRUPT_MASK_REED_SWITCH) == INTERRUPT_MASK_REED_SWITCH)
-        {
-            /* Clear interrupt */
-            pending_interrupt &= ~INTERRUPT_MASK_REED_SWITCH;
+        if (CHECK_EVENT(INTERRUPT_MASK_REED_SWITCH)) {
+            CLEAR_EVENT(INTERRUPT_MASK_REED_SWITCH);
         }
 
         /* Accelerometer interrupt handler */
-        if ((pending_interrupt & INTERRUPT_MASK_FXOS8700) == INTERRUPT_MASK_FXOS8700)
-        {
-            /* Read transient interrupt register */
-            FXOS8700_clear_transient_interrupt(&(data.vibration));
-            /* Check if a movement has been detected */
-            if (data.vibration == TRUE)
-            {
-                /* Set send message flag */
-                send = TRUE;
-                /* Increment event counter */
-                data.event_counter++;
-            }
-
-            /* Clear interrupt */
-            pending_interrupt &= ~INTERRUPT_MASK_FXOS8700;
+        if (CHECK_EVENT(INTERRUPT_MASK_FXOS8700)) {
+            getAccInfo(&data);
+            send = TRUE;
+            CLEAR_EVENT(INTERRUPT_MASK_FXOS8700);
         }
 
         /* Check if we need to send a message */
-        if (send == TRUE)
-        {
-            /* Build the payload */
-            DISCOVERY_build_payload(&payload, MODE_VIBRATION, &data);
-
-            /* Send the message */
-            err = RADIO_API_send_message(RGB_BLUE, (u8*)&payload, DISCOVERY_PAYLOAD_SIZE, FALSE, NULL);
-            /* Parse the error code */
-            ERROR_parser(err);
-
-            if (err == RADIO_ERR_NONE)
-            {
-                /* Reset event counter */
-                data.event_counter = 0;
-            }
-
-            /* Clear vibration flag */
-            data.vibration = FALSE;
-
-            /* Clear button flag */
-            data.button = FALSE;
-
-            /* Clear send flag */
+        if (send == TRUE) {
+            sendData(&data);
             send = FALSE;
         }
 
         /* Check if all interrupt have been clear */
-        if (pending_interrupt == 0)
-        {
-            /* Wait for Interrupt */
-            SENSIT_API_sleep(FALSE);
+        if (pending_interrupt == 0) {
+            SENSIT_API_sleep(FALSE); /* Wait for Interrupt */
         }
     } /* End of while */
 }
-
-/*******************************************************************/
