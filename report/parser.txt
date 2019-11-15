@@ -1,0 +1,45 @@
+var payload,
+  EVENT_ID,
+  AX,
+  AY,
+  AZ,
+  parsedData = [],
+  obj = {};
+
+// If byte #1 of the payload is temperature (hex to decimal)
+EVENT_ID = parseInt(payload.slice(0, 1), 16);
+AX = parseInt(payload.slice(2, 6), 16)
+AY = parseInt(payload.slice(6, 10), 16);
+AZ = parseInt(payload.slice(10, 14), 16);
+
+// Store objects in parsedData array
+obj = {};
+obj.key = 'EVENT_ID';
+obj.value = EVENT_ID;
+obj.type = '';
+obj.unit = '';
+parsedData.push(obj);
+
+obj = {};
+obj.key = 'AX';
+obj.value = AX;
+obj.type = 'number';
+obj.unit = 'mg';
+parsedData.push(obj);
+
+obj = {};
+obj.key = 'AY';
+obj.value = AY;
+obj.type = 'number';
+obj.unit = 'mg';
+parsedData.push(obj);
+
+obj = {};
+obj.key = 'AZ';
+obj.value = AZ;
+obj.type = 'number';
+obj.unit = 'mg';
+parsedData.push(obj);
+
+//console.log(parsedData);
+return parsedData;

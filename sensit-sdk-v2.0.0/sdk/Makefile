@@ -13,8 +13,9 @@ LIB_PATH = lib
 # --------------
 # OUTPUT FOLDERS
 # --------------
-BIN_PATH = bin
-OBJ_PATH = obj
+LIB_PATH = ./lib
+BIN_PATH = ./bin
+OBJ_PATH = ./obj
 
 
 # ------------
@@ -30,9 +31,9 @@ SIZE_OUTPUT = $(OUTPUT_NAME).siz
 # ---------
 # TOOLCHAIN
 # ---------
-CC = arm-none-eabi-gcc
-BIN_TOOL  = arm-none-eabi-objcopy
-SIZE_TOOL = arm-none-eabi-size
+CC = "../../../GnuWin32.2/bin/arm-none-eabi-gcc"
+BIN_TOOL  = "../../../GnuWin32.2/bin/arm-none-eabi-objcopy"
+SIZE_TOOL = "../../../GnuWin32.2/bin/arm-none-eabi-size"
 
 
 # -------------------
@@ -190,4 +191,4 @@ dir:
 
 # Rule for USB flashing using dfu file manager (vendor id 0483)
 prog:
-	dfu-util -a 0 -s 0x08000000:leave -D $(BIN_PATH)/$(BIN_OUTPUT)
+	../../../dfu-util-0.9-win64/dfu-util.exe -a 0 -s 0x08000000:leave -D $(BIN_PATH)/$(BIN_OUTPUT)
